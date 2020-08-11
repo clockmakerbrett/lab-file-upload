@@ -3,11 +3,20 @@
 const { Router } = require('express');
 const router = new Router();
 const bcryptjs = require('bcryptjs');
+const multer = require('multer');
+const cloudinary = require('cloudinary');
+const multerStorageCloudinary = require('multer-storage-cloudinary');
 const saltRounds = 10;
 const User = require('../models/User.model');
 const mongoose = require('mongoose');
 
 const routeGuard = require('../configs/route-guard.config');
+
+const storage = new multerStorageCloudinary.CloudinaryStorage({
+  cloudinary: cloudinary.v2
+});
+
+const upload = multer({ storage });
 
 ////////////////////////////////////////////////////////////////////////
 ///////////////////////////// SIGNUP //////////////////////////////////
@@ -17,9 +26,9 @@ const routeGuard = require('../configs/route-guard.config');
 router.get('/signup', (req, res) => res.render('auth/signup'));
 
 // .post() route ==> to process form data
-router.post('/signup', (req, res, next) => {
+router.post('/signup', upload.single('attachment'), (req, res, next) => {
   const { username, email, password } = req.body;
-
+  const pictureUrl = req.file.path;
   if (!username || !email || !password) {
     res.render('auth/signup', { errorMessage: 'All fields are mandatory. Please provide your username, email and password.' });
     return;
@@ -28,6 +37,7 @@ router.post('/signup', (req, res, next) => {
   // make sure passwords are strong:
   const regex = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{6,}/;
   if (!regex.test(password)) {
+    console.log('password error');
     res
       .status(500)
       .render('auth/signup', { errorMessage: 'Password needs to have at least 6 chars and must contain at least one number, one lowercase and one uppercase letter.' });
@@ -39,13 +49,10 @@ router.post('/signup', (req, res, next) => {
     .then(salt => bcryptjs.hash(password, salt))
     .then(hashedPassword => {
       return User.create({
-        // username: username
         username,
         email,
-        // passwordHash => this is the key from the User model
-        //     ^
-        //     |            |--> this is placeholder (how we named returning value from the previous method (.hash()))
-        passwordHash: hashedPassword
+        passwordHash: hashedPassword,
+        pictureUrl
       });
     })
     .then(userFromDB => {
